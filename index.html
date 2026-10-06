@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14532d">
+<title>Bitácora Riberas</title>
+<style>
+:root{
+  --bg:#f4f5f2; --card:#ffffff; --ink:#1b1f1c; --muted:#5d665f; --line:#d9ddd6;
+  --brand:#14532d; --brand-ink:#ffffff; --accent:#0b6e4f; --warn:#9a3412; --ok:#166534;
+  --chip:#e7ebe4; --danger:#b91c1c;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#101311; --card:#1a1f1b; --ink:#eef1ec; --muted:#a3ada5; --line:#2e352f;
+    --brand:#4ade80; --brand-ink:#0b1a10; --accent:#34d399; --warn:#fdba74; --ok:#86efac; --chip:#262d27; --danger:#f87171; }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding:0 0 env(safe-area-inset-bottom)}
+header{background:var(--brand);color:var(--brand-ink);padding:14px 16px;position:sticky;top:0;z-index:5}
+header h1{margin:0;font-size:19px;letter-spacing:.2px}
+header p{margin:2px 0 0;font-size:13px;opacity:.85}
+main{max-width:640px;margin:0 auto;padding:12px 16px 40px}
+section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
+h2{font-size:15px;margin:0 0 10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1.5px solid var(--line);background:var(--chip);color:var(--ink);border-radius:999px;padding:10px 16px;font-size:16px;min-height:44px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--brand);color:var(--brand-ink);border-color:var(--brand);font-weight:600}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+button{font:inherit}
+.btn{flex:1 1 140px;min-height:50px;border-radius:12px;border:1.5px solid var(--line);background:var(--chip);color:var(--ink);
+  padding:12px 14px;font-size:16px;font-weight:600;cursor:pointer}
+.btn.primary{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+.btn.small{min-height:40px;flex:0 0 auto;font-size:14px;padding:8px 12px}
+.btn.danger{color:var(--danger);border-color:var(--danger);background:transparent}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+textarea,input[type=text],select{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1.5px solid var(--line);border-radius:10px;padding:10px 12px}
+textarea{min-height:96px;resize:vertical}
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;margin:10px 0}
+.th{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--chip);border:1px solid var(--line)}
+.th img{width:100%;height:100%;object-fit:cover;display:block}
+.th button{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;border:0;background:rgba(0,0,0,.65);color:#fff;font-size:16px;line-height:1}
+.th .busy{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.35);color:#fff;font-size:12px}
+.msg{margin:10px 0 0;font-size:14px;min-height:20px}
+.msg.ok{color:var(--ok)} .msg.warn{color:var(--warn)} .msg.err{color:var(--danger)}
+label.lbl{display:block;font-weight:600;margin:12px 0 6px}
+.log-item{border-top:1px solid var(--line);padding:12px 0}
+.log-item:first-child{border-top:0}
+.log-top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.log-casa{font-weight:700}
+.log-meta{font-size:13px;color:var(--muted)}
+.log-txt{margin:6px 0;white-space:pre-wrap;word-break:break-word}
+.badge{display:inline-block;font-size:12px;border-radius:999px;padding:2px 8px;border:1px solid var(--line);margin-right:6px;color:var(--muted)}
+.badge.on{background:var(--chip);color:var(--ok);border-color:var(--ok)}
+.log-thumbs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.log-thumbs img{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.log-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.hint{font-size:13px;color:var(--muted);margin:8px 0 0}
+.empty{color:var(--muted);padding:6px 0}
+details summary{cursor:pointer;color:var(--muted);font-size:14px;margin-top:10px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Bitácora Riberas</h1>
+  <p id="sub">Foto + comentario → WhatsApp y registro, en un solo paso</p>
+</header>
+<main>
+
+<section id="nueva">
+  <h2>Nueva observación</h2>
+
+  <label class="lbl">Casa</label>
+  <div class="chips" id="casas" role="group" aria-label="Casa"></div>
+  <div id="otraWrap" hidden style="margin-top:8px"><input type="text" id="otraNombre" placeholder="Nombre de la casa" maxlength="30"></div>
+
+  <label class="lbl">Fotos</label>
+  <div class="row">
+    <button class="btn" id="btnCam" type="button">Tomar foto</button>
+    <button class="btn" id="btnGal" type="button">Elegir de galería</button>
+  </div>
+  <input type="file" id="inCam" accept="image/*" capture="environment" hidden>
+  <input type="file" id="inGal" accept="image/*" multiple hidden>
+  <div class="thumbs" id="thumbs"></div>
+
+  <label class="lbl" for="coment">Comentario</label>
+  <textarea id="coment" placeholder="Escribe o dicta con el micrófono del teclado"></textarea>
+
+  <div class="row" style="margin-top:12px">
+    <button class="btn primary" id="btnEnviar" type="button" disabled>Enviar a WhatsApp</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <button class="btn" id="btnGuardar" type="button" disabled>Solo guardar</button>
+    <button class="btn" id="btnCopiar" type="button">Copiar comentario</button>
+  </div>
+  <p class="msg" id="msgNueva" role="status" aria-live="polite"></p>
+  <p class="hint">Al tocar “Enviar a WhatsApp” se abre el menú de compartir del celular; eliges el grupo del contratista y sale como mensaje normal. La observación queda guardada aquí aunque canceles.</p>
+</section>
+
+<section id="registro">
+  <h2>Registro</h2>
+  <div class="row" style="margin-bottom:6px">
+    <select id="fRango" aria-label="Periodo" style="flex:1 1 140px">
+      <option value="hoy">Hoy</option>
+      <option value="semana" selected>Esta semana</option>
+      <option value="todo">Todo</option>
+    </select>
+    <select id="fCasa" aria-label="Casa" style="flex:1 1 140px"><option value="">Todas las casas</option></select>
+  </div>
+  <div id="log"></div>
+</section>
+
+<section id="exportar">
+  <h2>Exportar a la laptop</h2>
+  <select id="xRango" aria-label="Qué exportar">
+    <option value="pend">Lo que aún no he exportado</option>
+    <option value="semana">Esta semana</option>
+    <option value="todo">Todo</option>
+  </select>
+  <div class="row" style="margin-top:10px">
+    <button class="btn primary" id="btnZipDown" type="button">Descargar ZIP</button>
+    <button class="btn" id="btnZipShare" type="button">Compartir ZIP</button>
+  </div>
+  <p class="msg" id="msgExp" role="status" aria-live="polite"></p>
+  <p class="hint">El ZIP trae las fotos ya renombradas (CASA_AAAA-MM-DD_01.jpg), un comentarios.txt por casa y día, y un observaciones.json. Mándalo a tu correo o a Drive, guárdalo en tu carpeta RIBERAS y pide el reporte.</p>
+  <details><summary>Cuidado con tus datos</summary>
+    <p class="hint">Las observaciones viven solo en este navegador del celular. Si borras los datos del navegador o cambias de teléfono sin exportar, se pierden. Exporta al menos una vez por semana.</p>
+    <p class="hint" id="storeInfo"></p>
+  </details>
+</section>
+
+</main>
+
+<script>
+(function(){
+'use strict';
+
+/* ---------- Ajustes ---------- */
+var CASAS=['Danna','Bianca','Vera','Nar','Araz','Celeste','Azkar','Casa J','Otra'];
+var MAX_SIDE=1920, JPEG_Q=0.82, THUMB=200;
+
+/* ---------- Utilidades ---------- */
+function $(id){return document.getElementById(id);}
+function pad(n){return (n<10?'0':'')+n;}
+function fechaISO(ts){var d=new Date(ts);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+function fechaCarpeta(ts){return fechaISO(ts).replace(/-/g,'_');}
+function fechaMX(ts){var d=new Date(ts);return pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+d.getFullYear();}
+function hora(ts){var d=new Date(ts);return pad(d.getHours())+':'+pad(d.getMinutes());}
+function slugCasa(n){
+  return String(n).normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'')||'SIN_CASA';
+}
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+function setMsg(el,txt,cls){el.textContent=txt||'';el.className='msg'+(cls?' '+cls:'');}
+function inicioSemana(ts){var d=new Date(ts);d.setHours(0,0,0,0);var dow=(d.getDay()+6)%7;d.setDate(d.getDate()-dow);return d.getTime();}
+function inicioDia(ts){var d=new Date(ts);d.setHours(0,0,0,0);return d.getTime();}
+
+/* ---------- IndexedDB ---------- */
+var db=null, cache=[];
+function openDB(){
+  return new Promise(function(res,rej){
+    var rq=indexedDB.open('bitacora_riberas',1);
+    rq.onupgradeneeded=function(){rq.result.createObjectStore('obs',{keyPath:'id'});};
+    rq.onsuccess=function(){res(rq.result);};
+    rq.onerror=function(){rej(rq.error);};
+  });
+}
+function dbAll(){
+  return new Promise(function(res,rej){
+    var out=[],tx=db.transaction('obs','readonly'),rq=tx.objectStore('obs').openCursor();
+    rq.onsuccess=function(){var c=rq.result;if(c){out.push(c.value);c.continue();}else res(out);};
+    rq.onerror=function(){rej(rq.error);};
+  });
+}
+function dbPut(o){
+  return new Promise(function(res,rej){
+    var tx=db.transaction('obs','readwrite');tx.objectStore('obs').put(o);
+    tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};tx.onabort=function(){rej(tx.error);};
+  });
+}
+function dbDel(id){
+  return new Promise(function(res,rej){
+    var tx=db.transaction('obs','readwrite');tx.objectStore('obs').delete(id);
+    tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};
+  });
+}
+
+/* ---------- Fotos: reducir y miniatura ---------- */
+var queue=Promise.resolve();
+function procesarFoto(file){
+  if(!window.createImageBitmap){return Promise.resolve({blob:file,thumb:file});}
+  return createImageBitmap(file,{resizeWidth:64}).then(function(small){
+    var r=small.width/small.height; if(small.close)small.close();
+    var tw,th;
+    // lado largo = MAX_SIDE (sin ampliar fotos chicas: se decide con el tamaño real abajo)
+    if(r>=1){tw=MAX_SIDE;th=Math.round(MAX_SIDE/r);}else{th=MAX_SIDE;tw=Math.round(MAX_SIDE*r);}
+    return createImageBitmap(file,{resizeWidth:tw,resizeHeight:th,resizeQuality:'medium'});
+  }).then(function(bmp){
+    var c=document.createElement('canvas');c.width=bmp.width;c.height=bmp.height;
+    c.getContext('2d').drawImage(bmp,0,0);
+    var sc=THUMB/Math.max(bmp.width,bmp.height),tc=document.createElement('canvas');
+    tc.width=Math.max(1,Math.round(bmp.width*sc));tc.height=Math.max(1,Math.round(bmp.height*sc));
+    tc.getContext('2d').drawImage(bmp,0,0,tc.width,tc.height);
+    if(bmp.close)bmp.close();
+    function toBlob(cv,q){return new Promise(function(r){cv.toBlob(function(b){r(b);},'image/jpeg',q);});}
+    return Promise.all([toBlob(c,JPEG_Q),toBlob(tc,0.7)]).then(function(a){
+      c.width=c.height=0;tc.width=tc.height=0;
+      if(!a[0]||!a[0].size)return {blob:file,thumb:file};
+      return {blob:a[0],thumb:a[1]||a[0]};
+    });
+  }).catch(function(){return {blob:file,thumb:file};});
+}
+
+/* ---------- Estado del formulario ---------- */
+var casa=lsGet('casa')||'';
+var fotos=[]; // {blob,thumb,url,status}
+
+function renderCasas(){
+  var box=$('casas');box.textContent='';
+  CASAS.forEach(function(n){
+    var b=document.createElement('button');b.type='button';b.className='chip';b.textContent=n;
+    b.setAttribute('aria-pressed',String(casa===n));
+    b.onclick=function(){casa=n;lsSet('casa',n);renderCasas();$('otraWrap').hidden=(n!=='Otra');validar();};
+    box.appendChild(b);
+  });
+  $('otraWrap').hidden=(casa!=='Otra');
+}
+function nombreCasa(){
+  if(casa==='Otra'){return ($('otraNombre').value||'').trim();}
+  return casa;
+}
+function renderThumbs(){
+  var box=$('thumbs');box.textContent='';
+  fotos.forEach(function(f,i){
+    var d=document.createElement('div');d.className='th';
+    if(f.url){var im=document.createElement('img');im.src=f.url;im.alt='Foto '+(i+1);d.appendChild(im);}
+    if(f.status==='busy'){var bz=document.createElement('div');bz.className='busy';bz.textContent='Procesando…';d.appendChild(bz);}
+    var x=document.createElement('button');x.type='button';x.textContent='×';x.setAttribute('aria-label','Quitar foto');
+    x.onclick=function(){if(f.url)URL.revokeObjectURL(f.url);fotos.splice(i,1);renderThumbs();validar();};
+    d.appendChild(x);box.appendChild(d);
+  });
+}
+function validar(){
+  var listo=fotos.every(function(f){return f.status==='ok';});
+  var ok=listo&&nombreCasa()&&(fotos.length>0||$('coment').value.trim());
+  $('btnEnviar').disabled=!ok;$('btnGuardar').disabled=!ok;
+}
+function agregarFotos(lista){
+  Array.prototype.forEach.call(lista,function(file){
+    var e={blob:null,thumb:null,url:null,status:'busy'};fotos.push(e);renderThumbs();validar();
+    queue=queue.then(function(){return procesarFoto(file);}).then(function(r){
+      e.blob=r.blob;e.thumb=r.thumb;e.url=URL.createObjectURL(r.thumb);e.status='ok';renderThumbs();validar();
+    });
+  });
+}
+
+/* ---------- Construir observación ---------- */
+function nuevoId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+function siguienteNum(slug,ts){
+  var dia=fechaISO(ts),n=0;
+  cache.forEach(function(o){if(slugCasa(o.casa)===slug&&fechaISO(o.ts)===dia)n+=o.fotos.length;});
+  return n;
+}
+function construirObs(){
+  var ts=Date.now(),nom=nombreCasa(),slug=slugCasa(nom),base=siguienteNum(slug,ts);
+  return {
+    id:nuevoId(),casa:nom,comentario:$('coment').value.trim(),ts:ts,enviada:false,exportada:false,
+    fotos:fotos.map(function(f,i){
+      var n=base+i+1;
+      return {nombre:slug+'_'+fechaISO(ts)+'_'+pad(n)+'.jpg',blob:f.blob,thumb:f.thumb};
+    })
+  };
+}
+function textoWA(o){
+  var t='*'+o.casa.toUpperCase()+'* · '+fechaMX(o.ts);
+  if(o.comentario)t+='\n'+o.comentario;
+  return t;
+}
+function archivosDe(o){
+  return o.fotos.map(function(f){return new File([f.blob],f.nombre,{type:'image/jpeg'});});
+}
+function limpiarForm(){
+  fotos.forEach(function(f){if(f.url)URL.revokeObjectURL(f.url);});
+  fotos=[];$('coment').value='';renderThumbs();validar();
+}
+
+/* ---------- Compartir a WhatsApp ---------- */
+function compartir(o,msgEl,alTerminar){
+  var files=archivosDe(o),data={files:files,text:textoWA(o)};
+  if(!navigator.share||!navigator.canShare||!navigator.canShare({files:files})){
+    setMsg(msgEl,'Este navegador no permite compartir fotos desde aquí. Quedó guardada; usa “Copiar comentario” y envía las fotos desde la galería.','warn');
+    return Promise.resolve(false);
+  }
+  return navigator.share(data).then(function(){
+    o.enviada=true;return dbPut(o).then(function(){
+      setMsg(msgEl,'Listo: se abrió WhatsApp/compartir y la observación quedó registrada como enviada.','ok');
+      if(alTerminar)alTerminar();return true;});
+  }).catch(function(err){
+    if(err&&err.name==='AbortError'){setMsg(msgEl,'Envío cancelado. La observación quedó guardada; puedes reenviarla desde el registro.','warn');}
+    else{setMsg(msgEl,'No se pudo abrir compartir ('+(err&&err.name||'error')+'). Quedó guardada.','err');}
+    return false;
+  });
+}
+function textoCopiable(){var o={casa:nombreCasa()||'',ts:Date.now(),comentario:$('coment').value.trim()};return textoWA(o);}
+
+function onEnviar(){
+  var msg=$('msgNueva');setMsg(msg,'');
+  var o=construirObs();cache.push(o);
+  var p=compartir(o,msg,function(){limpiarForm();}); // share se invoca de inmediato, sin esperas previas
+  dbPut(o).then(function(){renderLog();updStore();}).catch(function(){setMsg(msg,'No se pudo guardar en el celular (almacenamiento lleno o bloqueado).','err');});
+  p.then(function(ok){
+    if(!ok){/* se conserva el formulario por si quiere reintentar o editar */
+      // la observación ya está guardada; limpiamos para no duplicarla al reintentar
+      limpiarForm();
+    }
+    renderLog();
+  });
+}
+function onGuardar(){
+  var msg=$('msgNueva');var o=construirObs();cache.push(o);
+  dbPut(o).then(function(){limpiarForm();setMsg(msg,'Guardada en el registro (sin enviar).','ok');renderLog();updStore();})
+    .catch(function(){setMsg(msg,'No se pudo guardar en el celular.','err');});
+}
+function onCopiar(){
+  var t=textoCopiable(),msg=$('msgNueva');
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(function(){setMsg(msg,'Comentario copiado; pégalo en WhatsApp.','ok');},
+      function(){setMsg(msg,'No se pudo copiar.','err');});
+  }else{setMsg(msg,'Este navegador no permite copiar automáticamente.','warn');}
+}
+
+/* ---------- Registro ---------- */
+function filtrar(){
+  var r=$('fRango').value,c=$('fCasa').value,now=Date.now();
+  var desde=r==='hoy'?inicioDia(now):(r==='semana'?inicioSemana(now):0);
+  return cache.filter(function(o){return o.ts>=desde&&(!c||o.casa===c);}).sort(function(a,b){return b.ts-a.ts;});
+}
+var urlsLog=[];
+function renderLog(){
+  urlsLog.forEach(function(u){URL.revokeObjectURL(u);});urlsLog=[];
+  // casas presentes
+  var sel=$('fCasa'),cur=sel.value,set={};cache.forEach(function(o){set[o.casa]=1;});
+  sel.textContent='';var a=document.createElement('option');a.value='';a.textContent='Todas las casas';sel.appendChild(a);
+  Object.keys(set).sort().forEach(function(n){var op=document.createElement('option');op.value=n;op.textContent=n;sel.appendChild(op);});
+  sel.value=set[cur]?cur:'';
+  var box=$('log');box.textContent='';var lista=filtrar();
+  if(!lista.length){var e=document.createElement('p');e.className='empty';e.textContent='Sin observaciones en este periodo.';box.appendChild(e);return;}
+  lista.forEach(function(o){
+    var it=document.createElement('div');it.className='log-item';
+    var top=document.createElement('div');top.className='log-top';
+    var c=document.createElement('span');c.className='log-casa';c.textContent=o.casa;
+    var m=document.createElement('span');m.className='log-meta';m.textContent=fechaMX(o.ts)+' '+hora(o.ts);
+    top.appendChild(c);top.appendChild(m);it.appendChild(top);
+    if(o.fotos.length){
+      var th=document.createElement('div');th.className='log-thumbs';
+      o.fotos.forEach(function(f){var im=document.createElement('img');var u=URL.createObjectURL(f.thumb||f.blob);urlsLog.push(u);im.src=u;im.alt=f.nombre;th.appendChild(im);});
+      it.appendChild(th);
+    }
+    if(o.comentario){var t=document.createElement('div');t.className='log-txt';t.textContent=o.comentario;it.appendChild(t);}
+    var bd=document.createElement('div');
+    var b1=document.createElement('span');b1.className='badge'+(o.enviada?' on':'');b1.textContent=o.enviada?'Enviada':'Sin enviar';
+    var b2=document.createElement('span');b2.className='badge'+(o.exportada?' on':'');b2.textContent=o.exportada?'Exportada':'Sin exportar';
+    var b3=document.createElement('span');b3.className='badge';b3.textContent=o.fotos.length+' foto'+(o.fotos.length===1?'':'s');
+    bd.appendChild(b1);bd.appendChild(b2);bd.appendChild(b3);it.appendChild(bd);
+    var ac=document.createElement('div');ac.className='log-actions';
+    var re=document.createElement('button');re.type='button';re.className='btn small';re.textContent=o.enviada?'Reenviar':'Enviar';
+    var msgI=document.createElement('p');msgI.className='msg';
+    re.onclick=function(){compartir(o,msgI,function(){renderLog();});};
+    var del=document.createElement('button');del.type='button';del.className='btn small danger';del.textContent='Eliminar';
+    var armed=false;
+    del.onclick=function(){
+      if(!armed){armed=true;del.textContent='Toca otra vez para borrar';setTimeout(function(){armed=false;del.textContent='Eliminar';},3500);return;}
+      dbDel(o.id).then(function(){cache=cache.filter(function(x){return x.id!==o.id;});renderLog();updStore();});
+    };
+    ac.appendChild(re);ac.appendChild(del);it.appendChild(ac);it.appendChild(msgI);
+    box.appendChild(it);
+  });
+}
+
+/* ---------- ZIP (sin compresión) ---------- */
+var CRC_T=(function(){var t=new Uint32Array(256);for(var n=0;n<256;n++){var c=n;for(var k=0;k<8;k++)c=c&1?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})();
+function crc32(u8){var c=0xFFFFFFFF;for(var i=0;i<u8.length;i++)c=CRC_T[(c^u8[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+function dosTime(d){return ((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xFFFF;}
+function dosDate(d){return (((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;}
+// entries: [{name, blob}]  → Promise<Blob>
+function crearZip(entries){
+  var enc=new TextEncoder(),parts=[],central=[],offset=0,now=new Date();
+  var chain=Promise.resolve();
+  entries.forEach(function(e){
+    chain=chain.then(function(){return e.blob.arrayBuffer();}).then(function(buf){
+      var data=new Uint8Array(buf),name=enc.encode(e.name),crc=crc32(data),size=data.length;
+      var lh=new DataView(new ArrayBuffer(30));
+      lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);lh.setUint16(8,0,true);
+      lh.setUint16(10,dosTime(now),true);lh.setUint16(12,dosDate(now),true);lh.setUint32(14,crc,true);
+      lh.setUint32(18,size,true);lh.setUint32(22,size,true);lh.setUint16(26,name.length,true);lh.setUint16(28,0,true);
+      parts.push(lh.buffer,name,e.blob);
+      var ch=new DataView(new ArrayBuffer(46));
+      ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x0800,true);ch.setUint16(10,0,true);
+      ch.setUint16(12,dosTime(now),true);ch.setUint16(14,dosDate(now),true);ch.setUint32(16,crc,true);
+      ch.setUint32(20,size,true);ch.setUint32(24,size,true);ch.setUint16(28,name.length,true);
+      ch.setUint16(30,0,true);ch.setUint16(32,0,true);ch.setUint16(34,0,true);ch.setUint16(36,0,true);ch.setUint32(38,0,true);ch.setUint32(42,offset,true);
+      central.push(ch.buffer,name);
+      offset+=30+name.length+size;
+    });
+  });
+  return chain.then(function(){
+    var cdSize=0;central.forEach(function(p){cdSize+=p.byteLength;});
+    var eo=new DataView(new ArrayBuffer(22));
+    eo.setUint32(0,0x06054b50,true);eo.setUint16(8,entries.length,true);eo.setUint16(10,entries.length,true);
+    eo.setUint32(12,cdSize,true);eo.setUint32(16,offset,true);
+    return new Blob(parts.concat(central,[eo.buffer]),{type:'application/zip'});
+  });
+}
+
+/* ---------- Exportar ---------- */
+function seleccion(){
+  var r=$('xRango').value;
+  if(r==='todo')return cache.slice();
+  if(r==='semana'){var d=inicioSemana(Date.now());return cache.filter(function(o){return o.ts>=d;});}
+  return cache.filter(function(o){return !o.exportada;});
+}
+function armarExport(lista){
+  var entries=[],porDia={},json=[],ahora=new Date();
+  lista.sort(function(a,b){return a.ts-b.ts;});
+  lista.forEach(function(o){
+    var slug=slugCasa(o.casa),carp=slug+'/'+fechaCarpeta(o.ts);
+    var k=carp;(porDia[k]=porDia[k]||{casa:o.casa,ts:o.ts,items:[]}).items.push(o);
+    var rutas=o.fotos.map(function(f){entries.push({name:carp+'/fotos/'+f.nombre,blob:f.blob});return carp+'/fotos/'+f.nombre;});
+    json.push({id:o.id,casa:o.casa,carpeta:slug,fecha:fechaISO(o.ts),hora:hora(o.ts),comentario:o.comentario,fotos:rutas,enviada_whatsapp:!!o.enviada});
+  });
+  Object.keys(porDia).forEach(function(k){
+    var g=porDia[k],L=[];
+    L.push('BITACORA RIBERAS - '+g.casa.toUpperCase()+' - '+fechaMX(g.ts));
+    L.push('Exportado: '+fechaMX(ahora.getTime())+' '+hora(ahora.getTime()));
+    L.push('==================================================');
+    g.items.forEach(function(o){
+      L.push('');L.push('['+hora(o.ts)+'] Fotos: '+(o.fotos.map(function(f){return f.nombre;}).join(', ')||'(sin fotos)'));
+      L.push(o.comentario||'(sin comentario)');
+    });
+    L.push('');
+    entries.push({name:k+'/comentarios.txt',blob:new Blob([L.join('\r\n')],{type:'text/plain;charset=utf-8'})});
+  });
+  entries.push({name:'observaciones.json',blob:new Blob([JSON.stringify(json,null,2)],{type:'application/json'})});
+  return entries;
+}
+function nombreZip(){var d=new Date();return 'BITACORA_RIBERAS_'+d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes())+'.zip';}
+function marcarExportadas(lista){
+  return Promise.all(lista.map(function(o){o.exportada=true;return dbPut(o);})).then(renderLog);
+}
+function exportar(modo){
+  var msg=$('msgExp'),lista=seleccion();
+  if(!lista.length){setMsg(msg,'No hay observaciones en esa selección.','warn');return;}
+  setMsg(msg,'Armando ZIP con '+lista.length+' observación(es)…');
+  crearZip(armarExport(lista)).then(function(zip){
+    var nombre=nombreZip(),mb=(zip.size/1048576).toFixed(1)+' MB';
+    if(modo==='share'){
+      var f=new File([zip],nombre,{type:'application/zip'});
+      if(navigator.canShare&&navigator.canShare({files:[f]})){
+        return navigator.share({files:[f]}).then(function(){setMsg(msg,'ZIP compartido ('+mb+').','ok');return marcarExportadas(lista);})
+          .catch(function(e){if(e&&e.name==='AbortError')setMsg(msg,'Cancelado.','warn');else setMsg(msg,'No se pudo compartir el ZIP; usa “Descargar ZIP”.','err');});
+      }
+      setMsg(msg,'Este navegador no permite compartir ZIP; usa “Descargar ZIP”.','warn');return;
+    }
+    var u=URL.createObjectURL(zip),a=document.createElement('a');a.href=u;a.download=nombre;document.body.appendChild(a);a.click();
+    setTimeout(function(){URL.revokeObjectURL(u);a.remove();},4000);
+    setMsg(msg,'ZIP descargado ('+mb+'). Búscalo en Descargas del celular.','ok');
+    return marcarExportadas(lista);
+  }).catch(function(){setMsg(msg,'No se pudo armar el ZIP (memoria). Prueba exportando menos días.','err');});
+}
+
+/* ---------- Almacenamiento ---------- */
+function updStore(){
+  var el=$('storeInfo');if(!el)return;
+  var n=cache.length,f=cache.reduce(function(s,o){return s+o.fotos.length;},0);
+  var t=n+' observaciones y '+f+' fotos guardadas en este celular.';
+  if(navigator.storage&&navigator.storage.estimate){
+    navigator.storage.estimate().then(function(e){el.textContent=t+' Uso: '+(e.usage/1048576).toFixed(0)+' MB.';},function(){el.textContent=t;});
+  }else el.textContent=t;
+}
+
+/* ---------- Arranque ---------- */
+function init(){
+  renderCasas();validar();
+  $('btnCam').onclick=function(){$('inCam').click();};
+  $('btnGal').onclick=function(){$('inGal').click();};
+  $('inCam').onchange=function(e){agregarFotos(e.target.files);e.target.value='';};
+  $('inGal').onchange=function(e){agregarFotos(e.target.files);e.target.value='';};
+  $('coment').oninput=validar;$('otraNombre').oninput=validar;
+  $('btnEnviar').onclick=onEnviar;$('btnGuardar').onclick=onGuardar;$('btnCopiar').onclick=onCopiar;
+  $('fRango').onchange=renderLog;$('fCasa').onchange=renderLog;
+  $('btnZipDown').onclick=function(){exportar('down');};
+  $('btnZipShare').onclick=function(){exportar('share');};
+  if(navigator.storage&&navigator.storage.persist){navigator.storage.persist();}
+  if(!window.indexedDB){setMsg($('msgNueva'),'Este navegador no permite guardar datos. Usa Chrome.','err');return;}
+  openDB().then(function(d){db=d;return dbAll();}).then(function(all){cache=all;renderLog();updStore();})
+    .catch(function(){setMsg($('msgNueva'),'No se pudo abrir el almacenamiento del navegador.','err');});
+}
+init();
+window.__bitacora={get cache(){return cache;}}; // solo para pruebas
+})();
+</script>
+</body>
+</html>
