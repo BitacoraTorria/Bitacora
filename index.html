@@ -120,14 +120,14 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px;margin-top:10px
     <option value="todo">Todo</option>
   </select>
   <div class="row" style="margin-top:10px">
-    <button class="btn primary" id="btnZipDown" type="button">Descargar ZIP</button>
-    <button class="btn" id="btnZipShare" type="button">Compartir ZIP</button>
+    <button class="btn" id="btnZipDown" type="button">Descargar ZIP</button>
+    <button class="btn primary" id="btnZipShare" type="button">Compartir fotos y datos</button>
   </div>
   <p class="msg" id="msgExp" role="status" aria-live="polite"></p>
-  <p class="hint">El ZIP trae las fotos ya renombradas (CASA_AAAA-MM-DD_01.jpg), un comentarios.txt por casa y día, y un observaciones.json. Mándalo a tu correo o a Drive, guárdalo en tu carpeta RIBERAS y pide el reporte.</p>
+  <p class="hint"><b>Compartir fotos y datos</b> manda de una vez las fotos ya renombradas (CASA_AAAA-MM-DD_01.jpg) y un archivo _DATOS.txt con los comentarios. Elige Drive o Gmail en el menú de compartir. Con más de 20 fotos conviene Drive (Gmail limita a 25 MB). <b>Descargar ZIP</b> es el respaldo: lo guarda en Descargas.</p>
   <details><summary>Cuidado con tus datos</summary>
     <p class="hint">Las observaciones viven solo en este navegador del celular. Si borras los datos del navegador o cambias de teléfono sin exportar, se pierden. Exporta al menos una vez por semana.</p>
-    <p class="hint" id="storeInfo"></p>
+    <p class="hint" id="storeInfo"></p><p class="hint">Versión 2</p>
   </details>
 </section>
 
@@ -449,20 +449,39 @@ function nombreZip(){var d=new Date();return 'BITACORA_RIBERAS_'+d.getFullYear()
 function marcarExportadas(lista){
   return Promise.all(lista.map(function(o){o.exportada=true;return dbPut(o);})).then(renderLog);
 }
+function compartirSueltos(lista,msg){
+  var entries=armarExport(lista),d=new Date(),stamp=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes());
+  var fotosF=entries.filter(function(e){return /\.jpg$/i.test(e.name);}).map(function(e){return new File([e.blob],e.name.split('/').pop(),{type:'image/jpeg'});});
+  var txts=entries.filter(function(e){return /comentarios\.txt$/.test(e.name);});
+  var jsonE=entries.filter(function(e){return e.name==='observaciones.json';})[0];
+  return Promise.all(txts.map(function(e){return e.blob.text();})).then(function(arr){
+    return jsonE.blob.text().then(function(j){
+      var body=arr.join('\r\n\r\n')+'\r\n\r\n=== DATOS (JSON) ===\r\n'+j;
+      var df=new File([body],'BITACORA_RIBERAS_'+stamp+'_DATOS.txt',{type:'text/plain'});
+      var files=fotosF.concat([df]);
+      if(!(navigator.share&&navigator.canShare&&navigator.canShare({files:files}))){
+        setMsg(msg,'Este navegador no permite compartir tantos archivos; usa “Descargar ZIP”.','warn');return;
+      }
+      return navigator.share({files:files}).then(function(){
+        setMsg(msg,'Compartido: '+fotosF.length+' foto(s) y los datos.','ok');return marcarExportadas(lista);
+      }).catch(function(e){
+        if(e&&e.name==='AbortError')setMsg(msg,'Cancelado.','warn');
+        else setMsg(msg,'No se pudo compartir ('+(e&&e.name||'error')+'); usa “Descargar ZIP”.','err');
+      });
+    });
+  });
+}
 function exportar(modo){
   var msg=$('msgExp'),lista=seleccion();
   if(!lista.length){setMsg(msg,'No hay observaciones en esa selección.','warn');return;}
+  if(modo==='share'){
+    setMsg(msg,'Preparando '+lista.length+' observación(es)…');
+    compartirSueltos(lista,msg).catch(function(){setMsg(msg,'No se pudo preparar el envío; usa “Descargar ZIP”.','err');});
+    return;
+  }
   setMsg(msg,'Armando ZIP con '+lista.length+' observación(es)…');
   crearZip(armarExport(lista)).then(function(zip){
     var nombre=nombreZip(),mb=(zip.size/1048576).toFixed(1)+' MB';
-    if(modo==='share'){
-      var f=new File([zip],nombre,{type:'application/zip'});
-      if(navigator.canShare&&navigator.canShare({files:[f]})){
-        return navigator.share({files:[f]}).then(function(){setMsg(msg,'ZIP compartido ('+mb+').','ok');return marcarExportadas(lista);})
-          .catch(function(e){if(e&&e.name==='AbortError')setMsg(msg,'Cancelado.','warn');else setMsg(msg,'No se pudo compartir el ZIP; usa “Descargar ZIP”.','err');});
-      }
-      setMsg(msg,'Este navegador no permite compartir ZIP; usa “Descargar ZIP”.','warn');return;
-    }
     var u=URL.createObjectURL(zip),a=document.createElement('a');a.href=u;a.download=nombre;document.body.appendChild(a);a.click();
     setTimeout(function(){URL.revokeObjectURL(u);a.remove();},4000);
     setMsg(msg,'ZIP descargado ('+mb+'). Búscalo en Descargas del celular.','ok');
