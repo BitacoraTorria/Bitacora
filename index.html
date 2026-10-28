@@ -127,7 +127,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px;margin-top:10px
   <p class="hint"><b>Preparar fotos y datos</b> y luego <b>Compartir ahora</b> mandan de una vez las fotos ya renombradas (CASA_AAAA-MM-DD_01.jpg) y un archivo _DATOS.txt con los comentarios. Elige Drive o Gmail en el menú de compartir. Con más de 20 fotos conviene Drive (Gmail limita a 25 MB). <b>Descargar ZIP</b> es el respaldo: lo guarda en Descargas.</p>
   <details><summary>Cuidado con tus datos</summary>
     <p class="hint">Las observaciones viven solo en este navegador del celular. Si borras los datos del navegador o cambias de teléfono sin exportar, se pierden. Exporta al menos una vez por semana.</p>
-    <p class="hint" id="storeInfo"></p><p class="hint">Versión 3</p>
+    <p class="hint" id="storeInfo"></p><p class="hint">Versión 4</p>
   </details>
 </section>
 
@@ -449,37 +449,67 @@ function nombreZip(){var d=new Date();return 'BITACORA_RIBERAS_'+d.getFullYear()
 function marcarExportadas(lista){
   return Promise.all(lista.map(function(o){o.exportada=true;return dbPut(o);})).then(renderLog);
 }
-/* Compartir en 2 toques: el 1.o prepara los archivos; el 2.o abre compartir al instante
-   (Chrome exige que compartir se llame justo después de tocar el botón). */
+/* Compartir por lotes: Chrome solo deja compartir hasta 10 archivos y ~50 MB por envío
+   (si no, da NotAllowedError). Cada lote lleva hasta 9 fotos + su archivo _DATOS.txt.
+   1er toque: prepara; después un toque por lote, que abre compartir al instante. */
+var MAX_FOTOS=9, MAX_BYTES=40*1024*1024;
 var prep=null;
 function resetPrep(){prep=null;var b=$('btnZipShare');if(b)b.textContent='Preparar fotos y datos';}
-function prepararSueltos(lista,msg){
-  var entries=armarExport(lista),d=new Date(),stamp=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes());
-  var fotosF=entries.filter(function(e){return /\.jpg$/i.test(e.name);}).map(function(e){return new File([e.blob],e.name.split('/').pop(),{type:'image/jpeg'});});
-  var txts=entries.filter(function(e){return /comentarios\.txt$/.test(e.name);});
+function textoDatos(lista){
+  var entries=armarExport(lista.slice()),txts=entries.filter(function(e){return /comentarios\.txt$/.test(e.name);});
   var jsonE=entries.filter(function(e){return e.name==='observaciones.json';})[0];
   return Promise.all(txts.map(function(e){return e.blob.text();})).then(function(arr){
-    return jsonE.blob.text().then(function(j){
-      var body=arr.join('\r\n\r\n')+'\r\n\r\n=== DATOS (JSON) ===\r\n'+j;
-      var df=new File([body],'BITACORA_RIBERAS_'+stamp+'_DATOS.txt',{type:'text/plain'});
-      var files=fotosF.concat([df]);
-      if(!(navigator.share&&navigator.canShare&&navigator.canShare({files:files}))){
-        setMsg(msg,'Este navegador no permite compartir tantos archivos; usa “Descargar ZIP”.','warn');return;
-      }
-      prep={files:files,lista:lista,fotos:fotosF.length};
-      $('btnZipShare').textContent='Compartir ahora ('+fotosF.length+' foto'+(fotosF.length===1?'':'s')+')';
-      setMsg(msg,'Listo. Toca “Compartir ahora” y elige Drive y la carpeta WHATS OBRAS.','ok');
-    });
+    return jsonE.blob.text().then(function(j){return arr.join('\r\n\r\n')+'\r\n\r\n=== DATOS (JSON) ===\r\n'+j;});
   });
+}
+function armarLotes(lista){
+  var ord=lista.slice().sort(function(a,b){return a.ts-b.ts;}),lotes=[],cur=null;
+  function nuevo(){cur={lista:[],fotos:[],bytes:0};lotes.push(cur);}
+  ord.forEach(function(o){
+    var nf=o.fotos.length,by=o.fotos.reduce(function(t,f){return t+f.blob.size;},0);
+    if(!cur||(cur.fotos.length+nf>MAX_FOTOS&&cur.fotos.length>0)||(cur.bytes+by>MAX_BYTES&&cur.fotos.length>0))nuevo();
+    cur.lista.push(o);
+    o.fotos.forEach(function(f){
+      if(cur.fotos.length>=MAX_FOTOS||(cur.bytes+f.blob.size>MAX_BYTES&&cur.fotos.length>0)){nuevo();cur.lista.push(o);}
+      cur.fotos.push(new File([f.blob],f.nombre,{type:'image/jpeg'}));cur.bytes+=f.blob.size;
+    });
+    if(!nf){}
+  });
+  return lotes;
+}
+function prepararSueltos(lista,msg){
+  var d=new Date(),stamp=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes());
+  var lotes=armarLotes(lista),n=lotes.length;
+  return Promise.all(lotes.map(function(l,i){
+    return textoDatos(l.lista).then(function(body){
+      var nom='BITACORA_RIBERAS_'+stamp+(n>1?'_L'+(i+1):'')+'_DATOS.txt';
+      l.files=l.fotos.concat([new File([body],nom,{type:'text/plain'})]);
+    });
+  })).then(function(){
+    if(!(navigator.share&&navigator.canShare&&lotes.every(function(l){return navigator.canShare({files:l.files});}))){
+      setMsg(msg,'Este navegador no permite compartir estos archivos; usa “Descargar ZIP”.','warn');return;
+    }
+    prep={lotes:lotes,i:0};actualizarBotonLote();
+    setMsg(msg,n>1?'Listo: son '+n+' lotes (límite de Chrome). Toca “Compartir” una vez por lote y elige Drive y WHATS OBRAS.':'Listo. Toca “Compartir ahora” y elige Drive y WHATS OBRAS.','ok');
+  });
+}
+function actualizarBotonLote(){
+  var l=prep.lotes[prep.i],n=prep.lotes.length,t=l.fotos.length+' foto'+(l.fotos.length===1?'':'s');
+  $('btnZipShare').textContent=n>1?'Compartir lote '+(prep.i+1)+' de '+n+' ('+t+')':'Compartir ahora ('+t+')';
 }
 function compartirAhora(msg){
   var p=prep; if(!p)return;
-  var pr; try{pr=navigator.share({files:p.files});}catch(e){pr=Promise.reject(e);}
+  var l=p.lotes[p.i],pr;
+  try{pr=navigator.share({files:l.files});}catch(e){pr=Promise.reject(e);}   // sin esperas antes de compartir
   pr.then(function(){
-    setMsg(msg,'Compartido: '+p.fotos+' foto(s) y los datos.','ok');resetPrep();return marcarExportadas(p.lista);
+    return marcarExportadas(l.lista);
+  }).then(function(){
+    p.i++;
+    if(p.i<p.lotes.length){actualizarBotonLote();setMsg(msg,'Lote '+p.i+' compartido. Toca el botón para el siguiente lote.','ok');}
+    else{setMsg(msg,'Listo: todas las fotos y los datos fueron compartidos.','ok');resetPrep();}
   }).catch(function(e){
-    if(e&&e.name==='AbortError')setMsg(msg,'Cancelado. Puedes volver a tocar “Compartir ahora”.','warn');
-    else{resetPrep();setMsg(msg,'No se pudo compartir ('+(e&&e.name||'error')+'); usa “Descargar ZIP”.','err');}
+    if(e&&e.name==='AbortError')setMsg(msg,'Cancelado. Puedes volver a tocar el botón.','warn');
+    else{setMsg(msg,'No se pudo compartir ('+(e&&e.name||'error')+'). Toca el botón para reintentar o usa “Descargar ZIP”.','err');}
   });
 }
 function exportar(modo){
