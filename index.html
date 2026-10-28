@@ -121,13 +121,13 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px;margin-top:10px
   </select>
   <div class="row" style="margin-top:10px">
     <button class="btn" id="btnZipDown" type="button">Descargar ZIP</button>
-    <button class="btn primary" id="btnZipShare" type="button">Compartir fotos y datos</button>
+    <button class="btn primary" id="btnZipShare" type="button">Preparar fotos y datos</button>
   </div>
   <p class="msg" id="msgExp" role="status" aria-live="polite"></p>
-  <p class="hint"><b>Compartir fotos y datos</b> manda de una vez las fotos ya renombradas (CASA_AAAA-MM-DD_01.jpg) y un archivo _DATOS.txt con los comentarios. Elige Drive o Gmail en el menú de compartir. Con más de 20 fotos conviene Drive (Gmail limita a 25 MB). <b>Descargar ZIP</b> es el respaldo: lo guarda en Descargas.</p>
+  <p class="hint"><b>Preparar fotos y datos</b> y luego <b>Compartir ahora</b> mandan de una vez las fotos ya renombradas (CASA_AAAA-MM-DD_01.jpg) y un archivo _DATOS.txt con los comentarios. Elige Drive o Gmail en el menú de compartir. Con más de 20 fotos conviene Drive (Gmail limita a 25 MB). <b>Descargar ZIP</b> es el respaldo: lo guarda en Descargas.</p>
   <details><summary>Cuidado con tus datos</summary>
     <p class="hint">Las observaciones viven solo en este navegador del celular. Si borras los datos del navegador o cambias de teléfono sin exportar, se pierden. Exporta al menos una vez por semana.</p>
-    <p class="hint" id="storeInfo"></p><p class="hint">Versión 2</p>
+    <p class="hint" id="storeInfo"></p><p class="hint">Versión 3</p>
   </details>
 </section>
 
@@ -449,7 +449,11 @@ function nombreZip(){var d=new Date();return 'BITACORA_RIBERAS_'+d.getFullYear()
 function marcarExportadas(lista){
   return Promise.all(lista.map(function(o){o.exportada=true;return dbPut(o);})).then(renderLog);
 }
-function compartirSueltos(lista,msg){
+/* Compartir en 2 toques: el 1.o prepara los archivos; el 2.o abre compartir al instante
+   (Chrome exige que compartir se llame justo después de tocar el botón). */
+var prep=null;
+function resetPrep(){prep=null;var b=$('btnZipShare');if(b)b.textContent='Preparar fotos y datos';}
+function prepararSueltos(lista,msg){
   var entries=armarExport(lista),d=new Date(),stamp=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes());
   var fotosF=entries.filter(function(e){return /\.jpg$/i.test(e.name);}).map(function(e){return new File([e.blob],e.name.split('/').pop(),{type:'image/jpeg'});});
   var txts=entries.filter(function(e){return /comentarios\.txt$/.test(e.name);});
@@ -462,23 +466,34 @@ function compartirSueltos(lista,msg){
       if(!(navigator.share&&navigator.canShare&&navigator.canShare({files:files}))){
         setMsg(msg,'Este navegador no permite compartir tantos archivos; usa “Descargar ZIP”.','warn');return;
       }
-      return navigator.share({files:files}).then(function(){
-        setMsg(msg,'Compartido: '+fotosF.length+' foto(s) y los datos.','ok');return marcarExportadas(lista);
-      }).catch(function(e){
-        if(e&&e.name==='AbortError')setMsg(msg,'Cancelado.','warn');
-        else setMsg(msg,'No se pudo compartir ('+(e&&e.name||'error')+'); usa “Descargar ZIP”.','err');
-      });
+      prep={files:files,lista:lista,fotos:fotosF.length};
+      $('btnZipShare').textContent='Compartir ahora ('+fotosF.length+' foto'+(fotosF.length===1?'':'s')+')';
+      setMsg(msg,'Listo. Toca “Compartir ahora” y elige Drive y la carpeta WHATS OBRAS.','ok');
     });
   });
 }
+function compartirAhora(msg){
+  var p=prep; if(!p)return;
+  var pr; try{pr=navigator.share({files:p.files});}catch(e){pr=Promise.reject(e);}
+  pr.then(function(){
+    setMsg(msg,'Compartido: '+p.fotos+' foto(s) y los datos.','ok');resetPrep();return marcarExportadas(p.lista);
+  }).catch(function(e){
+    if(e&&e.name==='AbortError')setMsg(msg,'Cancelado. Puedes volver a tocar “Compartir ahora”.','warn');
+    else{resetPrep();setMsg(msg,'No se pudo compartir ('+(e&&e.name||'error')+'); usa “Descargar ZIP”.','err');}
+  });
+}
 function exportar(modo){
-  var msg=$('msgExp'),lista=seleccion();
-  if(!lista.length){setMsg(msg,'No hay observaciones en esa selección.','warn');return;}
+  var msg=$('msgExp');
   if(modo==='share'){
+    if(prep){compartirAhora(msg);return;}      // 2.o toque: compartir sin esperas
+    var lista=seleccion();
+    if(!lista.length){setMsg(msg,'No hay observaciones en esa selección.','warn');return;}
     setMsg(msg,'Preparando '+lista.length+' observación(es)…');
-    compartirSueltos(lista,msg).catch(function(){setMsg(msg,'No se pudo preparar el envío; usa “Descargar ZIP”.','err');});
+    prepararSueltos(lista,msg).catch(function(){setMsg(msg,'No se pudo preparar el envío; usa “Descargar ZIP”.','err');});
     return;
   }
+  var lista=seleccion();
+  if(!lista.length){setMsg(msg,'No hay observaciones en esa selección.','warn');return;}
   setMsg(msg,'Armando ZIP con '+lista.length+' observación(es)…');
   crearZip(armarExport(lista)).then(function(zip){
     var nombre=nombreZip(),mb=(zip.size/1048576).toFixed(1)+' MB';
@@ -510,6 +525,7 @@ function init(){
   $('btnEnviar').onclick=onEnviar;$('btnGuardar').onclick=onGuardar;$('btnCopiar').onclick=onCopiar;
   $('fRango').onchange=renderLog;$('fCasa').onchange=renderLog;
   $('btnZipDown').onclick=function(){exportar('down');};
+  $('xRango').addEventListener('change',resetPrep);
   $('btnZipShare').onclick=function(){exportar('share');};
   if(navigator.storage&&navigator.storage.persist){navigator.storage.persist();}
   if(!window.indexedDB){setMsg($('msgNueva'),'Este navegador no permite guardar datos. Usa Chrome.','err');return;}
